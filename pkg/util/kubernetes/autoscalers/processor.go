@@ -43,8 +43,8 @@ type DatadogClient interface {
 
 // ProcessorInterface is used to easily mock the interface for testing
 type ProcessorInterface interface {
-	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue)
-
+	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
+	QueryExternalMetric(queries []string) (map[string]Point, error)
 	ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
 }
 
@@ -61,49 +61,12 @@ type queryResponse struct {
 }
 
 // NewProcessor returns a new Processor
-func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
+func NewProcessor(datadogCl DatadogClient) *Processor {
 	externalMaxAge := math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog.GetFloat64("external_metrics_provider.rollup"))
 	return &Processor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
 		datadogClient:  datadogCl,
-	}, nil
-}
-
-// UpdateExternalMetrics does the validation and processing of the ExternalMetrics
-// TODO if a metric's ts in emList is too recent, no need to add it to the batchUpdate.
-func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
-	maxAge := int64(p.externalMaxAge.Seconds())
-	var err error
-	updated = make(map[string]custommetrics.ExternalMetricValue)
-	metrics, err := p.queryExternalMetric(emList)
-	if len(metrics) == 0 && err != nil {
-		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
-		// If no metrics can be retrieved from Datadog in a given list, we need to invalidate them
-		// To avoid undesirable autoscaling behaviors
-		return invalidate(emList)
 	}
-
-	for id, em := range emList {
-		// use query (metricName{scope}) as a key to avoid conflict if multiple hpas are using the same metric with different scopes.
-		metricIdentifier := getKey(em.MetricName, em.Labels)
-		metric := metrics[metricIdentifier]
-
-		if time.Now().Unix()-metric.timestamp > maxAge || !metric.valid {
-			// invalidating sparse metrics that are outdated
-			em.Valid = false
-			em.Value = metric.value
-			em.Timestamp = time.Now().Unix()
-			updated[id] = em
-			continue
-		}
-
-		em.Valid = true
-		em.Value = metric.value
-		em.Timestamp = metric.timestamp
-		log.Debugf("Updated the external metric %s{%v} for %s %s/%s", em.MetricName, em.Labels, em.Ref.Type, em.Ref.Namespace, em.Ref.Name)
-		updated[id] = em
-	}
-	return updated
 }
 
 // ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
@@ -150,6 +113,88 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 	return externalMetrics
 }
 
+// UpdateExternalMetrics does the validation and processing of the ExternalMetrics
+// TODO if a metric's ts in emList is too recent, no need to add it to the batchUpdate.
+func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
+	maxAge := int64(p.externalMaxAge.Seconds())
+	var err error
+	updated = make(map[string]custommetrics.ExternalMetricValue)
+
+	batch := []string{}
+	for _, e := range emList {
+		q := getKey(e.MetricName, e.Labels)
+		batch = append(batch, q)
+	}
+
+	metrics, err := p.QueryExternalMetric(batch)
+	if len(metrics) == 0 && err != nil {
+		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
+		// If no metrics can be retrieved from Datadog in a given list, we need to invalidate them
+		// To avoid undesirable autoscaling behaviors
+		return invalidate(emList)
+	}
+
+	for id, em := range emList {
+		// use query (metricName{scope}) as a key to avoid conflict if multiple hpas are using the same metric with different scopes.
+		metricIdentifier := getKey(em.MetricName, em.Labels)
+		metric := metrics[metricIdentifier]
+
+		if time.Now().Unix()-metric.Timestamp > maxAge || !metric.Valid {
+			// invalidating sparse metrics that are outdated
+			em.Valid = false
+			em.Value = metric.Value
+			em.Timestamp = time.Now().Unix()
+			updated[id] = em
+			continue
+		}
+
+		em.Valid = true
+		em.Value = metric.Value
+		em.Timestamp = metric.Timestamp
+		log.Debugf("Updated the external metric %s{%v} for %s %s/%s", em.MetricName, em.Labels, em.Ref.Type, em.Ref.Namespace, em.Ref.Name)
+		updated[id] = em
+	}
+	return updated
+}
+
+// queryExternalMetric queries Datadog to validate the availability and value of one or more external metrics
+// Also updates the rate limits statistics as a result of the query.
+func (p *Processor) QueryExternalMetric(queries []string) (processed map[string]Point, err error) {
+	chunks := makeChunks(queries)
+	log.Tracef("List of batches %v", chunks)
+
+	// we have a number of chunks with `chunkSize` metrics.
+	responses := make(chan queryResponse, len(queries))
+	processed = make(map[string]Point)
+
+	var waitResp sync.WaitGroup
+	waitResp.Add(len(chunks))
+	for _, c := range chunks {
+		go func(chunk []string) {
+			defer waitResp.Done()
+			resp, err := p.queryDatadogExternal(chunk)
+			responses <- queryResponse{resp, err}
+		}(c)
+	}
+	waitResp.Wait()
+	close(responses)
+	var errors []error
+	for elem := range responses {
+		for k, v := range elem.metrics {
+			processed[k] = v
+		}
+		if elem.err != nil {
+			errors = append(errors, elem.err)
+		}
+	}
+	log.Debugf("Processed %d chunks", len(chunks))
+
+	if err := p.updateRateLimitingMetrics(); err != nil {
+		errors = append(errors, err)
+	}
+	return processed, utilserror.NewAggregate(errors)
+}
+
 func isURLBeyondLimits(uriLength, numBuckets int) (bool, error) {
 	// The metric name can be at maximum 200 characters. Kubernetes limits the labels to 63 characters.
 	// Autoscalers with enough labels to form single a query of more than 7k characters are not supported.
@@ -184,49 +229,6 @@ func makeChunks(batch []string) (chunks [][]string) {
 	}
 	chunks = append(chunks, tempBucket)
 	return chunks
-}
-
-// queryExternalMetric queries Datadog to validate the availability and value of one or more external metrics
-// Also updates the rate limits statistics as a result of the query.
-func (p *Processor) queryExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
-	batch := []string{}
-	for _, e := range emList {
-		q := getKey(e.MetricName, e.Labels)
-		batch = append(batch, q)
-	}
-	chunks := makeChunks(batch)
-	log.Tracef("List of batches %v", chunks)
-
-	// we have a number of chunks with `chunkSize` metrics.
-	responses := make(chan queryResponse, len(batch))
-	processed = make(map[string]Point)
-
-	var waitResp sync.WaitGroup
-	waitResp.Add(len(chunks))
-	for _, c := range chunks {
-		go func(chunk []string) {
-			defer waitResp.Done()
-			resp, err := p.queryDatadogExternal(chunk)
-			responses <- queryResponse{resp, err}
-		}(c)
-	}
-	waitResp.Wait()
-	close(responses)
-	var errors []error
-	for elem := range responses {
-		for k, v := range elem.metrics {
-			processed[k] = v
-		}
-		if elem.err != nil {
-			errors = append(errors, elem.err)
-		}
-	}
-	log.Debugf("Processed %d chunks", len(chunks))
-
-	if err := p.updateRateLimitingMetrics(); err != nil {
-		errors = append(errors, err)
-	}
-	return processed, utilserror.NewAggregate(errors)
 }
 
 func invalidate(emList map[string]custommetrics.ExternalMetricValue) (invList map[string]custommetrics.ExternalMetricValue) {

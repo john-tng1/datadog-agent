@@ -48,9 +48,9 @@ var (
 )
 
 type Point struct {
-	value     float64
-	timestamp int64
-	valid     bool
+	Value     float64
+	Timestamp int64
+	Valid     bool
 }
 
 const (
@@ -90,7 +90,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 		// If the returned Series is empty for one or more processedMetrics, add it as invalid now
 		// so it can be retried later.
 		processedMetrics[name] = Point{
-			timestamp: time.Now().Unix(),
+			Timestamp: time.Now().Unix(),
 		}
 	}
 
@@ -121,19 +121,19 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 				skippedLastPoint = true
 				continue
 			}
-			point.value = *serie.Points[i][value]                       // store the original value
-			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in s
-			point.valid = true
+			point.Value = *serie.Points[i][value]                       // store the original value
+			point.Timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in s
+			point.Valid = true
 
 			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
 			processedMetrics[m] = point
 
 			// Prometheus submissions on the processed external metrics
-			metricsEval.Set(point.value, m)
-			precision := time.Now().Unix() - point.timestamp
+			metricsEval.Set(point.Value, m)
+			precision := time.Now().Unix() - point.Timestamp
 			metricsDelay.Set(float64(precision), m)
 
-			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
+			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", m, point.Value, point.Timestamp, i+1, len(serie.Points))
 			break
 		}
 	}

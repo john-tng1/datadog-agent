@@ -283,3 +283,7 @@
 [[constraint]]
   name = "github.com/bhmj/jsonslice"
   revision = "882a55fa931cb1034965bd34d2366b6b5fb012ae"
+
+[[constraint]]
+  branch = "vboulineau/datadogmetric"
+  name = "github.com/DataDog/datadog-operator"

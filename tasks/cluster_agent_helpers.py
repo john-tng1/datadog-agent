@@ -34,7 +34,7 @@ def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent{suffix}"
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "-i",
+        "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(
             bin_path, bin_name("datadog-cluster-agent{suffix}".format(suffix=bin_suffix))),

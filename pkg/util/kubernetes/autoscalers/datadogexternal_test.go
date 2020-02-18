@@ -39,7 +39,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 				return nil, nil
 			},
 			[]string{"mymetric{foo:bar}"},
-			map[string]Point{"mymetric{foo:bar}": {value: 0, valid: false}},
+			map[string]Point{"mymetric{foo:bar}": {Value: 0, Valid: false}},
 			fmt.Errorf("Returned series slice empty"),
 		},
 		{
@@ -92,19 +92,19 @@ func TestDatadogExternalQuery(t *testing.T) {
 			[]string{"mymetric{foo:bar,baz:ar}", "mymetric2{foo:baz}", "my.aws.metric{ba:bar}"},
 			map[string]Point{
 				"mymetric{foo:bar,baz:ar}": {
-					value:     42.0,
-					valid:     true,
-					timestamp: 300,
+					Value:     42.0,
+					Valid:     true,
+					Timestamp: 300,
 				},
 				"mymetric2{foo:baz}": {
-					value:     70.0,
-					valid:     true,
-					timestamp: 110,
+					Value:     70.0,
+					Valid:     true,
+					Timestamp: 110,
 				},
 				"my.aws.metric{ba:bar}": {
-					value:     0.0,
-					valid:     false,
-					timestamp: time.Now().Unix(),
+					Value:     0.0,
+					Valid:     false,
+					Timestamp: time.Now().Unix(),
 				},
 			},
 			nil,
@@ -123,10 +123,10 @@ func TestDatadogExternalQuery(t *testing.T) {
 
 			require.Len(t, test.points, len(points))
 			for n, p := range test.points {
-				require.Equal(t, p.valid, points[n].valid)
-				require.Equal(t, p.value, points[n].value)
-				if !p.valid {
-					require.WithinDuration(t, time.Now(), time.Unix(points[n].timestamp, 0), 5*time.Second)
+				require.Equal(t, p.Valid, points[n].Valid)
+				require.Equal(t, p.Value, points[n].Value)
+				if !p.Valid {
+					require.WithinDuration(t, time.Now(), time.Unix(points[n].Timestamp, 0), 5*time.Second)
 				}
 			}
 		})

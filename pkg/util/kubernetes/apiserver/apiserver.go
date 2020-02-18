@@ -31,6 +31,9 @@ import (
 
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+
+	dd_client "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned"
+	dd_informers "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions"
 )
 
 var (
@@ -60,9 +63,14 @@ type APIClient struct {
 
 	// WPAClient gives access to WPA API
 	WPAClient wpa_client.Interface
-
 	// WPAInformerFactory gives access to informers for Watermark Pod Autoscalers.
 	WPAInformerFactory wpa_informers.SharedInformerFactory
+
+	// DDClient gives access to all datadoghq/ custom types
+	DDClient dd_client.Interface
+	// DDInformerFactory gives access to informers for all datadoghq/ custom types
+	DDInformerFactory dd_informers.SharedInformerFactory
+
 	// used to setup the APIClient
 	initRetry      retry.Retrier
 	Cl             kubernetes.Interface
@@ -144,6 +152,26 @@ func getWPAInformerFactory() (wpa_informers.SharedInformerFactory, error) {
 	return wpa_informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
+func getDDClient(timeout time.Duration) (dd_client.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
+	return dd_client.NewForConfig(clientConfig)
+}
+
+func getDDInformerFactory() (dd_informers.SharedInformerFactory, error) {
+	// default to 300s
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getDDClient(0) // No timeout for the Informers, to allow long watch.
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return nil, err
+	}
+	return dd_informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
+}
+
 func getInformerFactory() (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
@@ -193,6 +221,16 @@ func (c *APIClient) connect() error {
 		}
 		if c.WPAClient, err = getWPAClient(time.Duration(c.timeoutSeconds) * time.Second); err != nil {
 			log.Errorf("Error getting WPA Client: %s", err.Error())
+			return err
+		}
+	}
+	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
+		if c.DDInformerFactory, err = getDDInformerFactory(); err != nil {
+			log.Errorf("Error getting datadoghq Client: %s", err.Error())
+			return err
+		}
+		if c.DDClient, err = getDDClient(time.Duration(c.timeoutSeconds) * time.Second); err != nil {
+			log.Errorf("Error getting datadoghq Informer Factory: %s", err.Error())
 			return err
 		}
 	}
@@ -250,6 +288,7 @@ func (c *APIClient) checkResourcesAuth() error {
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		return aggregateCheckResourcesErrors(errorMessages)
 	}
+
 	_, err = c.Cl.CoreV1().Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
@@ -257,6 +296,7 @@ func (c *APIClient) checkResourcesAuth() error {
 			return aggregateCheckResourcesErrors(errorMessages)
 		}
 	}
+
 	_, err = c.Cl.CoreV1().Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
@@ -264,11 +304,19 @@ func (c *APIClient) checkResourcesAuth() error {
 			return aggregateCheckResourcesErrors(errorMessages)
 		}
 	}
-	_, err = c.Cl.CoreV1().Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 
+	_, err = c.Cl.CoreV1().Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
 	}
+
+	if c.DDClient != nil {
+		_, err = c.DDClient.DatadoghqV1alpha1().DatadogMetrics("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
+		if err != nil {
+			errorMessages = append(errorMessages, fmt.Sprintf("DatadogMetric collection: %q", err.Error()))
+		}
+	}
+
 	return aggregateCheckResourcesErrors(errorMessages)
 }
 

@@ -58,6 +58,26 @@
   version = "v2.2.0"
 
 [[projects]]
+  branch = "vboulineau/datadogmetric"
+  digest = "1:e0a06d2d3bc2b0754050d98e7554006326fa1b91f1bdd9da4d1accd737c1b6a2"
+  name = "github.com/DataDog/datadog-operator"
+  packages = [
+    "pkg/apis/datadoghq/v1alpha1",
+    "pkg/generated/clientset/versioned",
+    "pkg/generated/clientset/versioned/fake",
+    "pkg/generated/clientset/versioned/scheme",
+    "pkg/generated/clientset/versioned/typed/datadoghq/v1alpha1",
+    "pkg/generated/clientset/versioned/typed/datadoghq/v1alpha1/fake",
+    "pkg/generated/informers/externalversions",
+    "pkg/generated/informers/externalversions/datadoghq",
+    "pkg/generated/informers/externalversions/datadoghq/v1alpha1",
+    "pkg/generated/informers/externalversions/internalinterfaces",
+    "pkg/generated/listers/datadoghq/v1alpha1",
+  ]
+  pruneopts = ""
+  revision = "42d688032396d0c5d77a456b3d3a2315511c658a"
+
+[[projects]]
   branch = "master"
   digest = "1:a59f3622f110cd6dbb8675a21aa4882dd4163445985b6f0c1abf18a22bc7e837"
   name = "github.com/DataDog/gohai"
@@ -452,6 +472,14 @@
   pruneopts = ""
   revision = "97fdf19511ea361ae1c100dd393cc47f8dcfa1e1"
   version = "v4"
+
+[[projects]]
+  digest = "1:91047da386fde9ac376e704aa7ce58d522c6ec71bf22826cfab9a71fa1728770"
+  name = "github.com/datadog/extendeddaemonset"
+  packages = ["pkg/apis/datadoghq/v1alpha1"]
+  pruneopts = ""
+  revision = "5163730247412b81103879c02da2961564f6c4ac"
+  version = "v0.1.0"
 
 [[projects]]
   digest = "1:0deddd908b6b4b768cfc272c16ee61e7088a60f7fe2f06c547bd3d8e1f8b8e77"
@@ -2201,6 +2229,11 @@
     "github.com/DataDog/agent-payload/gogen",
     "github.com/DataDog/agent-payload/process",
     "github.com/DataDog/datadog-go/statsd",
+    "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1",
+    "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned",
+    "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned/fake",
+    "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions",
+    "github.com/DataDog/datadog-operator/pkg/generated/listers/datadoghq/v1alpha1",
     "github.com/DataDog/gohai/cpu",
     "github.com/DataDog/gohai/filesystem",
     "github.com/DataDog/gohai/memory",
@@ -2333,6 +2366,7 @@
     "k8s.io/apimachinery/pkg/runtime/schema",
     "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
+    "k8s.io/apimachinery/pkg/util/diff",
     "k8s.io/apimachinery/pkg/util/errors",
     "k8s.io/apimachinery/pkg/util/rand",
     "k8s.io/apimachinery/pkg/util/sets",
@@ -2350,6 +2384,7 @@
     "k8s.io/client-go/listers/autoscaling/v2beta1",
     "k8s.io/client-go/listers/core/v1",
     "k8s.io/client-go/rest",
+    "k8s.io/client-go/testing",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
     "k8s.io/client-go/tools/leaderelection",
