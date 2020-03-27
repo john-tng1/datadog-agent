@@ -1285,6 +1285,14 @@
   version = "v1.4.2"
 
 [[projects]]
+  digest = "1:b021708dff42675563d82afe608b5630d81f6e8eec252b6071337c41c7f300b9"
+  name = "github.com/soniah/gosnmp"
+  packages = ["."]
+  pruneopts = ""
+  revision = "e3a0d759eeff664255695ef2574b3b5f74097b46"
+  version = "v1.24.0"
+
+[[projects]]
   digest = "1:956f655c87b7255c6b1ae6c203ebb0af98cf2a13ef2507e34c9bf1c0332ac0f5"
   name = "github.com/spf13/afero"
   packages = [
@@ -2297,6 +2305,7 @@
     "github.com/shirou/gopsutil/net",
     "github.com/shirou/gopsutil/process",
     "github.com/shirou/w32",
+    "github.com/soniah/gosnmp",
     "github.com/spf13/afero",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
