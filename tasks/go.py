@@ -264,11 +264,10 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
 
     if not no_dep_ensure:
         # source level deps
-        print("calling dep ensure")
+        print("calling go mod vendor")
         start = datetime.datetime.now()
         verbosity = ' -v' if verbose else ''
-        vendor_only = ' --vendor-only' if dep_vendor_only else ''
-        ctx.run("dep ensure{}{}".format(verbosity, vendor_only))
+        ctx.run("go mod vendor{}".format(verbosity))
         dep_done = datetime.datetime.now()
 
         # If github.com/DataDog/datadog-agent gets vendored too - nuke it
@@ -283,7 +282,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
             print("Removing vendored github.com/DataDog/datadog-agent")
             shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
 
-        # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
+        # make sure PSUTIL is gone on windows; the go mod above will vendor it
         # in because it's necessary on other platforms
         if not android and sys.platform == 'win32':
             print("Removing PSUTIL on Windows")
@@ -313,33 +312,35 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
     checks_done = datetime.datetime.now()
 
     if not no_dep_ensure:
-        print("dep ensure, elapsed:    {}".format(dep_done - start))
+        print("go mod vendor, elapsed: {}".format(dep_done - start))
     print("checks install elapsed: {}".format(checks_done - checks_start))
 
 @task
 def lint_licenses(ctx):
     """
-    Checks that the LICENSE-3rdparty.csv file is up-to-date with contents of Gopkg.lock
+    Checks that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
     """
-    import csv
-    import toml
+    print("Verify licenses")
+    ctx.run("hack/verify-license.sh")
 
-    # non-go deps that should be listed in the license file, but not in Gopkg.lock
+
+@task
+def lint_licenses_old(ctx):
+    # non-go deps that should be listed in the license file, but not in go.sum
     NON_GO_DEPS = set([
         'github.com/codemirror/CodeMirror',
         'github.com/FortAwesome/Font-Awesome',
         'github.com/jquery/jquery',
     ])
 
-    # Read all dep names from Gopkg.lock
+    # Read all dep names from go.sum
     go_deps = set()
-    gopkg_lock = toml.load('Gopkg.lock')
-    for project in gopkg_lock['projects']:
-        # FIXME: this conditional is necessary because of the issue introduced by DEPPROJECTROOT
-        # (for some reason `datadog-agent` gets added to Gopkg.lock and vendored), see comment in `deps`
-        # task for details
-        if project['name'] != 'github.com/DataDog/datadog-agent':
-            go_deps.add(project['name'])
+    with open('go.sum') as f:
+        for line in f:
+            gopkg = line.split(" ")
+            if len(gopkg) != 3:
+                continue
+            go_deps.add(gopkg[0])
 
     deps = go_deps | NON_GO_DEPS
 
@@ -349,12 +350,15 @@ def lint_licenses(ctx):
     for entry in licenses:
         if len(entry['License']) == 0:
             raise Exit(message="LICENSE-3rdparty entry '{}' has an empty license".format(entry['Origin']), code=1)
-        license_deps.add(entry['Origin'])
+        entrysplit = entry['Origin'].split("/")
+        entrysplit = entrysplit[0:3]
+        print('/'.join(entrysplit))
+        license_deps.add('/'.join(entrysplit))
 
     if deps != license_deps:
-        raise Exit(message="LICENSE-3rdparty.csv is outdated compared to deps listed in Gopkg.lock:\n" +
+        raise Exit(message="LICENSE-3rdparty.csv is outdated compared to deps listed in go.sum:\n" +
                            "missing from LICENSE-3rdparty.csv: {}\n".format(deps - license_deps) +
-                           "listed in LICENSE-3rdparty.csv but not in Gopkg.lock: {}".format(license_deps - deps),
+                           "listed in LICENSE-3rdparty.csv but not in go.sum: {}".format(license_deps - deps),
                    code=1)
 
 @task
