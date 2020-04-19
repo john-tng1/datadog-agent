@@ -85,7 +85,7 @@ core,"github.com/aws/aws-sdk-go/service/ec2",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/sts",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/sts/stsiface",Apache-2.0
 core,"github.com/beevik/ntp",FreeBSD
-core,"github.com/benesch/cgosymbolizer",FreeBSD
+core,"github.com/benesch/cgosymbolizer",NewBSD
 core,"github.com/beorn7/perks/quantile",MIT
 core,"github.com/bhmj/jsonslice",MIT
 core,"github.com/blang/semver",MIT
@@ -280,7 +280,6 @@ core,"github.com/hashicorp/hcl/json/token",MPL-2.0
 core,"github.com/hashicorp/serf/coordinate",MPL-2.0
 core,"github.com/hectane/go-acl",MIT
 core,"github.com/hectane/go-acl/api",MIT
-core,"github.com/ianlancetaylor/cgosymbolizer",NewBSD
 core,"github.com/imdario/mergo",NewBSD
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
 core,"github.com/iovisor/gobpf/bcc",Apache-2.0

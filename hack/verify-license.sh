@@ -25,4 +25,5 @@ then
     echo ${DIFF} >&2
     exit 2
 fi
+echo "Licenses ok" >&2
 exit 0
