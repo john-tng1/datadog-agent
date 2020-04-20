@@ -57,7 +57,7 @@
         },
         "github.com/frapposelli/wwhrd": {
             "version": "0.2.4",
-            "cmd": "./hack/install-wwhrd.sh $BOOTSTRAPPED_VERSION",
+            "cmd": "./tools/licenses/install-wwhrd.sh $BOOTSTRAPPED_VERSION",
             "type": "shell"
         }
     }

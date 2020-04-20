@@ -321,7 +321,7 @@ def lint_licenses(ctx):
     Checks that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
     """
     print("Verify licenses")
-    ctx.run("hack/verify-license.sh")
+    ctx.run("tools/licenses/verify-license.sh")
 
 
 @task
